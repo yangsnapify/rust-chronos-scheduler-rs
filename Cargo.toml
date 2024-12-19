@@ -1,5 +1,5 @@
 [package]
-name = "task-scheduler-rs"
+name = "task_scheduler_rs"
 version = "0.1.0"
 edition = "2021"
 

@@ -1,24 +1,30 @@
 use std::time::Duration;
+use std::fmt;
 
-pub struct Task<'a> {
-    id: i32,
-    cb: Box<dyn FnMut() + Send>,
-    recurring: bool,
-    delay: Duration,
-    paused: bool,
+pub struct Task {
+    pub id: i32,
+    pub cb: Box<dyn FnMut()>,
+    pub recurring: bool,
+    pub delay: Duration,
+    pub paused: bool,
+}
+impl fmt::Display for Task {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Task ID: {} and the pause state {}", self.id, self.paused)
+    }
 }
 
 impl Task {
     pub fn new<F>(id: i32, cb: F, recurring: bool, delay: Duration, paused: bool) -> Self
-    where 
-        F: FnMut() + Send + 'static,
+    where
+        F: FnMut() + 'static
     {
         Task {
-            id, 
+            id,
             cb: Box::new(cb),
+            recurring,
             delay,
-            recurring, 
-            paused
+            paused,
         }
     }
 }

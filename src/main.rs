@@ -3,10 +3,10 @@ use task_scheduler_rs::scheduler::task::TaskAction;
 use std::time::Duration;
 
 fn chan_success(msg: TaskAction) {
-    println!("TEST {}", msg);
+    println!("Msg {}", msg);
 }
 fn chan_err() {
-    println!("error");
+    println!("End");
 }
 
 fn main() {
@@ -16,7 +16,6 @@ fn main() {
     chan.listen(chan_success, chan_err);
     chan.send(TaskAction::Execute);
     chan.send(TaskAction::Execute);
-    chan.send(TaskAction::Shutdown);
 
     let callback: Box<dyn FnMut(&Task)> = Box::new(|task: &Task| {
         println!("Executing task with ID: {}", task.id);

@@ -15,31 +15,28 @@ impl Channel {
         let (sender, receiver) = mpsc::channel();
         Channel {
             task_sender: Arc::new(Mutex::new(sender)),
-            task_receiver: Arc::new(Mutex::new(receiver))
+            task_receiver: Arc::new(Mutex::new(receiver)),
         }
     }
 
     pub fn listen<F, E>(&mut self, handler: F, err: E)
-    where 
-        F : Fn(TaskAction) + Send  + 'static,
-        E : Fn() + Send + 'static
+        where F: Fn(TaskAction) + Send + 'static, E: Fn() + Send + 'static
     {
         let cloned = self.task_receiver.clone();
-
         thread::spawn(move || {
             loop {
                 let tr = cloned.lock().unwrap();
-    
                 match tr.recv() {
                     Ok(task) => {
                         if matches!(task, TaskAction::Shutdown) {
                             break;
                         }
                         handler(task);
-                    },
-                    Err(_) => {
-                       err();
-                       break;
+                    }
+                    Err(e) => {
+                        println!("Error receiving: {:?}", e);
+                        err();
+                        break;
                     }
                 }
             }

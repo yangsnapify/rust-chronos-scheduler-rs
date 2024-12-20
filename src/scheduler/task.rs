@@ -3,7 +3,6 @@ use std::fmt;
 
 pub struct Task {
     pub id: i32,
-    pub cb: Box<dyn FnMut(i32)>,
     pub recurring: bool,
     pub delay: Duration,
     pub paused: bool,
@@ -17,13 +16,10 @@ impl fmt::Display for Task {
 
 
 impl Task {
-    pub fn new<F>(id: i32, cb: F, recurring: bool, delay: Duration, paused: bool) -> Self
-    where
-        F: FnMut(i32) + 'static
+    pub fn new(id: i32, recurring: bool, delay: Duration, paused: bool) -> Self
     {
         Task {
             id,
-            cb: Box::new(cb),
             recurring,
             delay,
             paused,

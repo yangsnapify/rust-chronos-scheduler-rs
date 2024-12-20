@@ -28,7 +28,7 @@ impl <'a> Scheduler<'a> {
 
     pub fn execute(&mut self) {
         for (_key, task) in &mut self.tasks {
-            let mut temp_tasks_cb: Box<dyn FnMut(&Task)>  = Box::new(self.tasks_cb.get_mut(&_key).unwrap());
+            let temp_tasks_cb  = self.tasks_cb.get_mut(&_key).unwrap();
             temp_tasks_cb(task);  
         }
     }

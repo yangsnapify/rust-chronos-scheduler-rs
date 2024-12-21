@@ -29,6 +29,7 @@ impl Channel {
                 match tr.recv() {
                     Ok(task) => {
                         if matches!(task, TaskAction::Shutdown) {
+                            println!("Received shutdown signal");
                             break;
                         }
                         handler(task);

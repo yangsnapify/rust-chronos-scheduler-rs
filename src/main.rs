@@ -1,6 +1,6 @@
 use task_scheduler_rs::{ Scheduler, Task, Channel };
 use task_scheduler_rs::scheduler::task::TaskAction;
-use std::{thread, time};
+use std::{thread};
 use std::time::Duration;
 
 fn chan_success(msg: TaskAction) {

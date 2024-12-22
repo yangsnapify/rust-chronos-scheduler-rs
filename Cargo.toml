@@ -2,5 +2,7 @@
 name = "task_scheduler_rs"
 version = "0.1.0"
 edition = "2021"
+description = "A Rust-based scheduler with basic functionality, focused on adding tasks and handling actions like execute, pause, and shutdown using channels for task communication."
+repository  = "https://github.com/yangsnapify/task-scheduler-rs"
 
 [dependencies]

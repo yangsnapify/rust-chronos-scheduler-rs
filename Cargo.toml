@@ -6,6 +6,5 @@ description = "A Rust-based scheduler with basic functionality, focused on addin
 repository  = "https://github.com/yangsnapify/task-scheduler-rs"
 license = "MIT"
 keywords = ["task", "scheduler"]
-build = "build.rs"
 
 [dependencies]

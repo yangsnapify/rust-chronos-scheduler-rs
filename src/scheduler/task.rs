@@ -2,10 +2,17 @@ use std::time::Duration;
 use std::fmt;
 
 #[derive(Clone)]
+pub enum RecurrenceType {
+    None,
+    Fixed(Duration),
+}
+
+#[derive(Clone)]
 pub struct Task {
     pub id: i32,
     pub name: String,
     pub delay: Duration,
+    pub recurrence: RecurrenceType,
 }
 
 #[derive(Clone)]
@@ -32,12 +39,13 @@ impl fmt::Display for Task {
 }
 
 impl Task {
-    pub fn new(id: i32, name: String, delay: Duration) -> Self
+    pub fn new(id: i32, name: String, delay: Duration, recurrence:RecurrenceType ) -> Self
     {
         Task {
             id,
             name,
             delay,
+            recurrence
         }
     }
 }

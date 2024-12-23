@@ -1,22 +1,26 @@
 use std::collections::HashMap;
 use std::time::Duration;
-use tokio::time::sleep as tokio_sleep;
+use tokio::time::{sleep as tokio_sleep, interval as tokio_interval};
+use tokio::task::JoinHandle;
 use crate::scheduler::task::Task;
+use crate::scheduler::task::RecurrenceType;
 
-pub struct Scheduler<'a> {
+pub struct Scheduler {
     pub task_id_counter: i32,
     pub tasks: HashMap<i32, Task>,
-    pub tasks_cb: HashMap<i32, Box<dyn FnMut(&Task) + 'a + Send>>,
+    pub tasks_cb: HashMap<i32, Box<dyn FnMut(&Task) + Send + 'static>>,  // Changed lifetime bound
     pub name_to_id: HashMap<String, i32>,
+    running_tasks: HashMap<i32, JoinHandle<()>>,
 }
 
-impl<'a> Scheduler<'a> {
+impl Scheduler {
     pub fn new() -> Self {
         Scheduler {
             task_id_counter: 0,
             tasks: HashMap::new(),
             tasks_cb: HashMap::new(),
             name_to_id: HashMap::new(),
+            running_tasks: HashMap::new(),
         }
     }
 
@@ -26,13 +30,27 @@ impl<'a> Scheduler<'a> {
         cb: T,
         delay: Duration
     ) -> &mut Self
-        where T: FnMut(&Task) + 'a + Send
+        where T: FnMut(&Task) + Send + 'static
+    {
+        self.add_recurring_task(name, cb, delay, RecurrenceType::None)
+    }
+
+    pub fn add_recurring_task<T>(
+        &mut self,
+        name: String,
+        cb: T,
+        delay: Duration,
+        recurrence: RecurrenceType,
+    ) -> &mut Self
+        where T: FnMut(&Task) + Send + 'static
     {
         let task = Task {
             id: self.task_id_counter,
             name: name.clone(),
             delay,
+            recurrence,
         };
+        
         self.task_id_counter += 1;
         self.tasks.insert(self.task_id_counter, task);
         self.tasks_cb.insert(self.task_id_counter, Box::new(cb));
@@ -42,31 +60,63 @@ impl<'a> Scheduler<'a> {
     }
 
     pub async fn execute(&mut self) {
-        let mut tasks_to_remove = Vec::new();
-        for (key, task) in &mut self.tasks {
-            if !task.delay.is_zero() {
-                tokio_sleep(task.delay).await;
-            }
-
-            if let Some(cb) = self.tasks_cb.get_mut(key) {
-                cb(task);
-                tasks_to_remove.push(*key);
-            }
+        let mut tasks_to_process = Vec::new();
+        
+        // Collect tasks to process
+        for (key, task) in &self.tasks {
+            tasks_to_process.push((*key, task.clone()));
         }
 
-        for task_id in &tasks_to_remove {
-            self.tasks.remove(&task_id);
-            self.tasks_cb.remove(&task_id);
+        for (key, task) in tasks_to_process {
+            match task.recurrence {
+                RecurrenceType::None => {
+                    // Handle one-time task
+                    let mut cb = self.tasks_cb.remove(&key)
+                        .expect("Callback should exist for task");
+                    let task_clone = task.clone();
+                    
+                    tokio::spawn(async move {
+                        if !task_clone.delay.is_zero() {
+                            tokio_sleep(task_clone.delay).await;
+                        }
+                        cb(&task_clone);
+                    });
+                },
+                RecurrenceType::Fixed(repeat_interval) => {
+                    // Handle recurring task
+                    let mut cb = self.tasks_cb.remove(&key)
+                        .expect("Callback should exist for task");
+                    let task_clone = task.clone();
+                    
+                    let handle = tokio::spawn(async move {
+                        // Handle initial delay
+                        if !task_clone.delay.is_zero() {
+                            tokio_sleep(task_clone.delay).await;
+                        }
+                        
+                        let mut interval = tokio_interval(repeat_interval);
+                        loop {
+                            interval.tick().await;
+                            cb(&task_clone);
+                        }
+                    });
+                    
+                    self.running_tasks.insert(key, handle);
+                }
+            }
         }
     }
 
-    pub fn get_last_task_id(&self) -> Option<i32> {
-        if self.task_id_counter > 0 { Some(self.task_id_counter) } else { None }
+    pub async fn stop(&mut self) {
+        for (_, handle) in self.running_tasks.drain() {
+            handle.abort();
+        }
     }
 
-    pub fn remove_task(&mut self, task_id: i32) -> &mut Self {
-        self.tasks.retain(|_, task| task.id != task_id);
-        self
+    pub fn cleanup(&mut self) {
+        for (_, handle) in self.running_tasks.drain() {
+            handle.abort();
+        }
     }
 
     pub fn remove_task_by_name(&mut self, name: &str) -> &mut Self {
@@ -82,5 +132,11 @@ impl<'a> Scheduler<'a> {
             .values()
             .map(|task| task.name.as_str())
             .collect()
+    }
+}
+
+impl Drop for Scheduler {
+    fn drop(&mut self) {
+        self.cleanup();
     }
 }

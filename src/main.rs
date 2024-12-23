@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, sleep};
 use task_scheduler_rs::{Scheduler, Task};
+use task_scheduler_rs::scheduler::task::RecurrenceType;
 
 #[tokio::main]
 async fn main() {
@@ -17,6 +18,12 @@ async fn main() {
             "hourly_check".to_string(),
             Box::new(|task: &Task| println!("Checking... {}", task.name)),
             Duration::from_secs(2),
+        );
+        scheduler.add_recurring_task(
+            "recurring_task".to_string(),
+            |task| println!("Running task: {}", task.name),
+            Duration::from_secs(0),  // initial delay
+            RecurrenceType::Fixed(Duration::from_secs(5))  // repeat every 5 seconds
         );
     };
 
@@ -36,13 +43,14 @@ async fn main() {
         let mut scheduler = scheduler_clone.lock().await;
         scheduler.remove_task_by_name("daily_backup");
         println!("Removed 'daily_backup'");
-        println!("Current tasks: {:?}", scheduler.list_tasks());
     });
 
 
     // Main thread keeps running
+    let scheduler_clone = Arc::clone(&scheduler);
     loop {
+        let scheduler = scheduler_clone.lock().await;
         sleep(Duration::from_secs(1)).await;
-        println!("Main thread is still running...");
+        println!("Main thread is still running, Current tasks: {:?}", scheduler.list_tasks());
     }
 }

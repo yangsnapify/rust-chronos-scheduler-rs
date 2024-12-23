@@ -4,9 +4,8 @@ use std::fmt;
 #[derive(Clone)]
 pub struct Task {
     pub id: i32,
-    pub recurring: bool,
+    pub name: String,
     pub delay: Duration,
-    pub paused: bool,
 }
 
 #[derive(Clone)]
@@ -28,18 +27,17 @@ impl fmt::Display for TaskAction {
 
 impl fmt::Display for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Task ID: {} and the pause state {}", self.id, self.paused)
+        write!(f, "Task ID: {}", self.id)
     }
 }
 
 impl Task {
-    pub fn new(id: i32, recurring: bool, delay: Duration, paused: bool) -> Self
+    pub fn new(id: i32, name: String, delay: Duration) -> Self
     {
         Task {
             id,
-            recurring,
+            name,
             delay,
-            paused,
         }
     }
 }

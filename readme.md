@@ -5,31 +5,52 @@ A simple task scheduler for Rust with support for recurring tasks, pause/resume 
 ## Features
 
 - **Add one-time tasks**: Execute a task after a specified delay.
-- **Recurring tasks**: Schedule tasks that repeat at regular intervals.
-- **Pause tasks**: Pause tasks without removing them from the scheduler.
-- **Resume tasks**: Resume paused tasks from where they left off.
 - **Task removal**: Remove tasks by their ID.
 
 
 ```
-fn main() {
-    let mut scheduler = Scheduler::new();
-    let mut chan = Channel::new();
+#[tokio::main]
+async fn main() {
+    let scheduler = Arc::new(Mutex::new(Scheduler::new()));
+    {
+        let mut scheduler = scheduler.lock().await; // Lock for adding tasks
+        scheduler.add_task(
+            "daily_backup".to_string(),
+            Box::new(|task: &Task| println!("Backing up... {}", task.name)),
+            Duration::from_secs(1),
+        );
+        scheduler.add_task(
+            "hourly_check".to_string(),
+            Box::new(|task: &Task| println!("Checking... {}", task.name)),
+            Duration::from_secs(2),
+        );
+    };
 
-    chan.listen(chan_success, chan_err);
-    chan.send(TaskAction::Execute);
-    thread::sleep(Duration::from_secs(1));
 
-    let callback: Box<dyn FnMut(&Task)> = Box::new(|task: &Task| {
-        println!("Executing task with ID: {}", task.id);
+    let scheduler_clone = Arc::clone(&scheduler);
+    // Task 1: Execute the scheduler
+    tokio::spawn(async move {
+        let mut scheduler = scheduler_clone.lock().await;
+        scheduler.execute().await;
     });
-    let _task = scheduler.add_task(callback, true, Duration::new(0, 0), false);
-    scheduler.execute();
 
-    chan.send(TaskAction::Shutdown);
-    thread::sleep(Duration::from_millis(100));
-    chan.send(TaskAction::Execute);
-    thread::sleep(Duration::from_secs(1)); 
+
+    let scheduler_clone = Arc::clone(&scheduler);
+    // Task 2: Remove 'daily_backup' after 5 seconds
+    tokio::spawn(async move {
+        sleep(Duration::from_secs(5)).await; // Wait 5 seconds
+        let mut scheduler = scheduler_clone.lock().await;
+        scheduler.remove_task_by_name("daily_backup");
+        println!("Removed 'daily_backup'");
+        println!("Current tasks: {:?}", scheduler.list_tasks());
+    });
+
+
+    // Main thread keeps running
+    loop {
+        sleep(Duration::from_secs(1)).await;
+        println!("Main thread is still running...");
+    }
 }
 
 ```

@@ -8,3 +8,4 @@ license = "MIT"
 keywords = ["task", "scheduler"]
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }

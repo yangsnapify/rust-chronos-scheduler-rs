@@ -1,66 +1,86 @@
 use std::collections::HashMap;
 use std::time::Duration;
-use std::thread::sleep;
+use tokio::time::sleep as tokio_sleep;
 use crate::scheduler::task::Task;
 
 pub struct Scheduler<'a> {
-    task_id_counter: i32,
-    tasks: HashMap<i32, Task>,
-    tasks_cb: HashMap<i32,  Box<dyn FnMut(&Task) + 'a>>
+    pub task_id_counter: i32,
+    pub tasks: HashMap<i32, Task>,
+    pub tasks_cb: HashMap<i32, Box<dyn FnMut(&Task) + 'a + Send>>,
+    pub name_to_id: HashMap<String, i32>,
 }
 
-impl <'a> Scheduler<'a> {
+impl<'a> Scheduler<'a> {
     pub fn new() -> Self {
         Scheduler {
             task_id_counter: 0,
             tasks: HashMap::new(),
-            tasks_cb: HashMap::new()
+            tasks_cb: HashMap::new(),
+            name_to_id: HashMap::new(),
         }
     }
 
-    pub fn add_task(&mut self, cb: Box<dyn FnMut(&Task) + 'a>, recurring: bool, delay: Duration, paused: bool) -> &Task
+    pub fn add_task<T>(
+        &mut self,
+        name: String,
+        cb: T,
+        delay: Duration
+    ) -> &mut Self
+        where T: FnMut(&Task) + 'a + Send
     {
+        let task = Task {
+            id: self.task_id_counter,
+            name: name.clone(),
+            delay,
+        };
         self.task_id_counter += 1;
-        let task = Task::new(self.task_id_counter, recurring, delay, paused);
-        self.tasks_cb.insert(self.task_id_counter, cb);
         self.tasks.insert(self.task_id_counter, task);
-        self.tasks.get(&self.task_id_counter).unwrap()
+        self.tasks_cb.insert(self.task_id_counter, Box::new(cb));
+        self.name_to_id.insert(name, self.task_id_counter);
+
+        self
     }
 
-    pub fn execute(&mut self) {
-        for (_key, task) in &mut self.tasks {
-            if task.paused {
-                return;
-            }
+    pub async fn execute(&mut self) {
+        let mut tasks_to_remove = Vec::new();
+        for (key, task) in &mut self.tasks {
             if !task.delay.is_zero() {
-                sleep(task.delay);
+                tokio_sleep(task.delay).await;
             }
-            let temp_tasks_cb  = self.tasks_cb.get_mut(&_key).unwrap();
-            temp_tasks_cb(task);  
+
+            if let Some(cb) = self.tasks_cb.get_mut(key) {
+                cb(task);
+                tasks_to_remove.push(*key);
+            }
+        }
+
+        for task_id in &tasks_to_remove {
+            self.tasks.remove(&task_id);
+            self.tasks_cb.remove(&task_id);
         }
     }
 
-    fn is_valid_task_id(&mut self, id: &i32) -> Option<&mut Task> {
-        let value = self.tasks.get_mut(id);
-        if value.is_some() {
-            return value;
-        }
-        return None;
+    pub fn get_last_task_id(&self) -> Option<i32> {
+        if self.task_id_counter > 0 { Some(self.task_id_counter) } else { None }
     }
 
-    pub fn rmv_task(&mut self, id: &i32) {
-        if self.is_valid_task_id(id).is_some() {
-            self.tasks.remove(id);
-            self.tasks_cb.remove(id);
-        }
+    pub fn remove_task(&mut self, task_id: i32) -> &mut Self {
+        self.tasks.retain(|_, task| task.id != task_id);
+        self
     }
 
-    pub fn toggle_task(&mut self, id: &i32) {
-        let opt_task: Option<&mut Task> = self.is_valid_task_id(id);
-
-        if opt_task.is_some() {
-            let unwrap_task = opt_task.unwrap();
-            unwrap_task.paused = !unwrap_task.paused; 
+    pub fn remove_task_by_name(&mut self, name: &str) -> &mut Self {
+        if let Some(id) = self.name_to_id.remove(name) {
+            self.tasks.remove(&id);
+            self.tasks_cb.remove(&id);
         }
+        self
+    }
+
+    pub fn list_tasks(&self) -> Vec<&str> {
+        self.tasks
+            .values()
+            .map(|task| task.name.as_str())
+            .collect()
     }
 }

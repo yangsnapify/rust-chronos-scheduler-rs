@@ -54,3 +54,8 @@ async fn main() {
 }
 
 ```
+
+## Others
+- **Do Note that after task execution finished, the task will be remove even not calling remove_task_by_name**
+- **As my Rust Journey's continue, i will adding more features and hopefully make it more simple and easy to use**
+- **If you are pros looking for scheduler lib, I recommend you using others**
